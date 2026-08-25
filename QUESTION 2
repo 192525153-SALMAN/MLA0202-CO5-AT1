@@ -1,0 +1,218 @@
+print("V.SALMAN-192525153")
+
+import numpy as np
+import random
+import math
+
+NUMBER_OF_ADS = 5
+TOTAL_INTERACTIONS = 10000
+
+# Actual CTR of advertisements.
+# The algorithm does NOT know these values.
+true_ctr = [
+    0.05,   # Advertisement 1
+    0.10,   # Advertisement 2
+    0.15,   # Advertisement 3
+    0.08,   # Advertisement 4
+    0.20    # Advertisement 5
+]
+
+# Number of times each ad is displayed
+display_count = np.zeros(
+    NUMBER_OF_ADS,
+    dtype=int
+)
+
+# Number of clicks
+click_count = np.zeros(
+    NUMBER_OF_ADS,
+    dtype=int
+)
+
+
+# ------------------------------------------------------------
+# CLICK SIMULATION
+# ------------------------------------------------------------
+
+def show_ad(ad):
+
+    # Generate click based on hidden CTR
+    if random.random() < true_ctr[ad]:
+        return 1
+    else:
+        return 0
+
+
+# ------------------------------------------------------------
+# INITIAL EXPLORATION
+# Show each advertisement once
+# ------------------------------------------------------------
+
+for ad in range(NUMBER_OF_ADS):
+
+    reward = show_ad(ad)
+
+    display_count[ad] += 1
+    click_count[ad] += reward
+
+
+# ------------------------------------------------------------
+# UCB ALGORITHM
+# ------------------------------------------------------------
+
+for t in range(
+    NUMBER_OF_ADS + 1,
+    TOTAL_INTERACTIONS + 1
+):
+
+    ucb_values = []
+
+    for ad in range(NUMBER_OF_ADS):
+
+        # Estimated CTR
+        estimated_ctr = (
+            click_count[ad] /
+            display_count[ad]
+        )
+
+        # Confidence / exploration term
+        confidence = math.sqrt(
+            (2 * math.log(t)) /
+            display_count[ad]
+        )
+
+        # UCB value
+        ucb = (
+            estimated_ctr +
+            confidence
+        )
+
+        ucb_values.append(ucb)
+
+    # Select advertisement with highest UCB
+    selected_ad = int(
+        np.argmax(ucb_values)
+    )
+
+    # Display selected advertisement
+    reward = show_ad(selected_ad)
+
+    # Update statistics
+    display_count[selected_ad] += 1
+    click_count[selected_ad] += reward
+
+
+# ============================================================
+# CALCULATE RESULTS
+# ============================================================
+
+estimated_ctr = (
+    click_count /
+    display_count
+)
+
+best_ad = int(
+    np.argmax(estimated_ctr)
+)
+
+total_clicks = int(
+    np.sum(click_count)
+)
+
+
+# ============================================================
+# DISPLAY RESULTS
+# ============================================================
+
+print()
+print("=" * 65)
+print("       K-ARMED BANDIT - ONLINE ADVERTISEMENT")
+print("=" * 65)
+
+print()
+
+for ad in range(NUMBER_OF_ADS):
+
+    print(
+        "Advertisement",
+        ad + 1
+    )
+
+    print(
+        "  Displays       :",
+        display_count[ad]
+    )
+
+    print(
+        "  Clicks         :",
+        click_count[ad]
+    )
+
+    print(
+        "  Estimated CTR  :",
+        round(
+            estimated_ctr[ad] * 100,
+            2
+        ),
+        "%"
+    )
+
+    print(
+        "  UCB Performance: Good"
+    )
+
+    print("-" * 65)
+
+
+# ------------------------------------------------------------
+# FINAL RESULTS
+# ------------------------------------------------------------
+
+print()
+print("=" * 65)
+print("FINAL RESULTS")
+print("=" * 65)
+
+print(
+    "Total Interactions :",
+    TOTAL_INTERACTIONS
+)
+
+print(
+    "Total Clicks       :",
+    total_clicks
+)
+
+print(
+    "Best Advertisement :",
+    "Advertisement",
+    best_ad + 1
+)
+
+print(
+    "Best Estimated CTR :",
+    round(
+        estimated_ctr[best_ad] * 100,
+        2
+    ),
+    "%"
+)
+
+print()
+print("Algorithm Used:")
+print("UCB - Upper Confidence Bound")
+
+print()
+print("Objective:")
+print("Maximize total clicks while balancing")
+print("exploration and exploitation.")
+
+print()
+print("CONCLUSION:")
+print(
+    "The UCB algorithm explores all advertisements "
+    "and gradually selects advertisements with "
+    "higher estimated click-through rates."
+)
+
+print("=" * 65)
