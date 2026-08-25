@@ -1,0 +1,494 @@
+print("V.SALMAN")
+
+import numpy as np
+import random
+
+# ------------------------------------------------------------
+# WAREHOUSE
+# ------------------------------------------------------------
+
+# 0 = Free
+# 1 = Obstacle
+# 2 = Destination
+
+grid = np.array([
+    [0, 0, 0, 0, 0],
+    [0, 1, 1, 0, 0],
+    [0, 0, 0, 0, 0],
+    [0, 1, 0, 1, 0],
+    [0, 0, 0, 0, 2]
+])
+
+ROWS = 5
+COLS = 5
+
+START = (0, 0)
+GOAL = (4, 4)
+
+MAX_MOVES = 25
+MAX_BATTERY = 30
+
+# ------------------------------------------------------------
+# ACTIONS
+# ------------------------------------------------------------
+
+# 0 = Up
+# 1 = Down
+# 2 = Left
+# 3 = Right
+
+actions = {
+    0: (-1, 0),
+    1: (1, 0),
+    2: (0, -1),
+    3: (0, 1)
+}
+
+action_names = [
+    "UP",
+    "DOWN",
+    "LEFT",
+    "RIGHT"
+]
+
+# ------------------------------------------------------------
+# Q TABLE
+# ------------------------------------------------------------
+
+Q = np.zeros(
+    (
+        ROWS,
+        COLS,
+        MAX_BATTERY + 1,
+        MAX_MOVES + 1,
+        4
+    )
+)
+
+# ------------------------------------------------------------
+# PARAMETERS
+# ------------------------------------------------------------
+
+alpha = 0.1
+gamma = 0.9
+
+epsilon = 1.0
+epsilon_min = 0.05
+epsilon_decay = 0.995
+
+episodes = 5000
+
+
+# ============================================================
+# ENVIRONMENT STEP
+# ============================================================
+
+def environment_step(
+    state,
+    action,
+    battery,
+    moves
+):
+
+    row, col = state
+
+    # --------------------------------------------------------
+    # Stochastic environment
+    # 10% chance intended action changes
+    # --------------------------------------------------------
+
+    if random.random() < 0.10:
+        actual_action = random.randint(0, 3)
+    else:
+        actual_action = action
+
+    dr, dc = actions[actual_action]
+
+    new_row = row + dr
+    new_col = col + dc
+
+    # --------------------------------------------------------
+    # Every movement consumes one battery
+    # --------------------------------------------------------
+
+    battery -= 1
+    moves += 1
+
+    # --------------------------------------------------------
+    # Maximum movement reached
+    # IMPORTANT FIX
+    # --------------------------------------------------------
+
+    if moves >= MAX_MOVES:
+
+        # Check whether this final movement reaches goal
+        if (
+            0 <= new_row < ROWS and
+            0 <= new_col < COLS and
+            grid[new_row][new_col] == 2
+        ):
+
+            return (
+                (new_row, new_col),
+                100,
+                max(0, battery),
+                moves,
+                True
+            )
+
+        return (
+            state,
+            -20,
+            max(0, battery),
+            moves,
+            True
+        )
+
+    # --------------------------------------------------------
+    # Battery exhausted
+    # --------------------------------------------------------
+
+    if battery <= 0:
+
+        return (
+            state,
+            -20,
+            0,
+            moves,
+            True
+        )
+
+    # --------------------------------------------------------
+    # Outside grid
+    # --------------------------------------------------------
+
+    if (
+        new_row < 0 or
+        new_row >= ROWS or
+        new_col < 0 or
+        new_col >= COLS
+    ):
+
+        return (
+            state,
+            -5,
+            battery,
+            moves,
+            False
+        )
+
+    # --------------------------------------------------------
+    # Obstacle
+    # --------------------------------------------------------
+
+    if grid[new_row][new_col] == 1:
+
+        return (
+            state,
+            -5,
+            battery,
+            moves,
+            False
+        )
+
+    # --------------------------------------------------------
+    # Valid movement
+    # --------------------------------------------------------
+
+    next_state = (
+        new_row,
+        new_col
+    )
+
+    # --------------------------------------------------------
+    # Destination reached
+    # --------------------------------------------------------
+
+    if next_state == GOAL:
+
+        return (
+            next_state,
+            100,
+            battery,
+            moves,
+            True
+        )
+
+    # --------------------------------------------------------
+    # Normal movement
+    # --------------------------------------------------------
+
+    reward = -1
+
+    # Battery conservation penalty
+    if battery <= 5:
+        reward -= 10
+
+    return (
+        next_state,
+        reward,
+        battery,
+        moves,
+        False
+    )
+
+
+# ============================================================
+# TRAINING
+# ============================================================
+
+print("Training started...")
+
+for episode in range(episodes):
+
+    state = START
+    battery = MAX_BATTERY
+    moves = 0
+
+    done = False
+
+    while not done:
+
+        row, col = state
+
+        # ----------------------------------------------------
+        # Epsilon-Greedy
+        # ----------------------------------------------------
+
+        if random.random() < epsilon:
+
+            # Exploration
+            action = random.randint(0, 3)
+
+        else:
+
+            # Exploitation
+            action = int(
+                np.argmax(
+                    Q[
+                        row,
+                        col,
+                        battery,
+                        moves
+                    ]
+                )
+            )
+
+        # ----------------------------------------------------
+        # Take action
+        # ----------------------------------------------------
+
+        (
+            next_state,
+            reward,
+            next_battery,
+            next_moves,
+            done
+        ) = environment_step(
+            state,
+            action,
+            battery,
+            moves
+        )
+
+        next_row, next_col = next_state
+
+        # ----------------------------------------------------
+        # Q-learning update
+        # ----------------------------------------------------
+
+        current_q = Q[
+            row,
+            col,
+            battery,
+            moves,
+            action
+        ]
+
+        if done:
+
+            future_q = 0
+
+        else:
+
+            # Safety protection
+            safe_battery = min(
+                max(next_battery, 0),
+                MAX_BATTERY
+            )
+
+            safe_moves = min(
+                max(next_moves, 0),
+                MAX_MOVES
+            )
+
+            future_q = np.max(
+                Q[
+                    next_row,
+                    next_col,
+                    safe_battery,
+                    safe_moves
+                ]
+            )
+
+        new_q = current_q + alpha * (
+            reward +
+            gamma * future_q -
+            current_q
+        )
+
+        Q[
+            row,
+            col,
+            battery,
+            moves,
+            action
+        ] = new_q
+
+        # ----------------------------------------------------
+        # Update state
+        # ----------------------------------------------------
+
+        state = next_state
+        battery = next_battery
+        moves = next_moves
+
+    # --------------------------------------------------------
+    # Reduce exploration
+    # --------------------------------------------------------
+
+    epsilon = max(
+        epsilon_min,
+        epsilon * epsilon_decay
+    )
+
+print("Training completed!")
+
+
+# ============================================================
+# TEST LEARNED POLICY
+# ============================================================
+
+state = START
+battery = MAX_BATTERY
+moves = 0
+
+path = [state]
+
+print("\n")
+print("=" * 60)
+print("WAREHOUSE ROBOT NAVIGATION")
+print("=" * 60)
+
+print("Starting Position :", START)
+print("Destination       :", GOAL)
+print("Battery Capacity  :", MAX_BATTERY)
+print("Maximum Moves     :", MAX_MOVES)
+
+print("\nLearned Robot Path")
+print("-" * 60)
+
+
+while (
+    state != GOAL
+    and moves < MAX_MOVES
+    and battery > 0
+):
+
+    row, col = state
+
+    # Select best action
+    action = int(
+        np.argmax(
+            Q[
+                row,
+                col,
+                battery,
+                moves
+            ]
+        )
+    )
+
+    (
+        next_state,
+        reward,
+        battery,
+        moves,
+        done
+    ) = environment_step(
+        state,
+        action,
+        battery,
+        moves
+    )
+
+    print(
+        "Move",
+        moves,
+        ":",
+        action_names[action],
+        "->",
+        next_state,
+        "| Battery:",
+        battery,
+        "| Reward:",
+        reward
+    )
+
+    state = next_state
+
+    path.append(state)
+
+    if done:
+        break
+
+
+# ============================================================
+# FINAL RESULT
+# ============================================================
+
+print("\n")
+print("=" * 60)
+print("FINAL RESULT")
+print("=" * 60)
+
+print("Path:", path)
+
+print(
+    "Total Moves:",
+    moves
+)
+
+print(
+    "Remaining Battery:",
+    battery
+)
+
+if state == GOAL:
+
+    print(
+        "\nSUCCESS!"
+    )
+
+    print(
+        "Robot reached the destination."
+    )
+
+else:
+
+    print(
+        "\nDestination was not reached."
+    )
+
+print("\n")
+print("Algorithm:")
+print("Q-Learning with Epsilon-Greedy Exploration")
+
+print("\nConstraints:")
+print("✓ Four directions only")
+print("✓ Obstacles cannot be crossed")
+print("✓ One battery unit per movement")
+print("✓ Maximum 25 movements")
+print("✓ Battery capacity = 30")
+print("✓ Blocked paths receive penalty")
+print("✓ Stochastic environment")
