@@ -1,0 +1,403 @@
+print("V.SALMAN")
+
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+    confusion_matrix,
+    classification_report
+)
+
+
+np.random.seed(42)
+
+TOTAL_PATIENTS = 1_000_000
+
+print("=" * 65)
+print("HEALTHCARE MACHINE LEARNING SAMPLING")
+print("=" * 65)
+
+print("\nCreating 1,000,000 patient records...")
+
+data = pd.DataFrame({
+
+    "Age": np.random.randint(
+        18,
+        80,
+        TOTAL_PATIENTS
+    ),
+
+    "Gender": np.random.choice(
+        ["Male", "Female"],
+        TOTAL_PATIENTS
+    ),
+
+    "Disease_Category": np.random.choice(
+        [
+            "Disease_A",
+            "Disease_B",
+            "Disease_C",
+            "Disease_D"
+        ],
+        TOTAL_PATIENTS,
+        p=[
+            0.50,
+            0.30,
+            0.15,
+            0.05
+        ]
+    ),
+
+    "Blood_Pressure": np.random.randint(
+        90,
+        180,
+        TOTAL_PATIENTS
+    ),
+
+    "Sugar_Level": np.random.randint(
+        70,
+        250,
+        TOTAL_PATIENTS
+    ),
+
+    "Cholesterol": np.random.randint(
+        120,
+        300,
+        TOTAL_PATIENTS
+    )
+})
+
+
+# ============================================================
+# STEP 2: CREATE TARGET VARIABLE
+# ============================================================
+
+data["Disease"] = (
+
+    (data["Blood_Pressure"] > 140)
+
+    |
+
+    (data["Sugar_Level"] > 180)
+
+    |
+
+    (data["Cholesterol"] > 240)
+
+).astype(int)
+
+
+print("\nOriginal Dataset:")
+print("-----------------------------")
+print("Total Patients:", len(data))
+
+
+# ============================================================
+# STEP 3: SHOW ORIGINAL DISTRIBUTION
+# ============================================================
+
+print("\nOriginal Disease Distribution:")
+print("-----------------------------")
+
+original_distribution = (
+    data["Disease"]
+    .value_counts(normalize=True)
+    .sort_index()
+    * 100
+)
+
+print(original_distribution)
+
+
+# ============================================================
+# STEP 4: STRATIFIED RANDOM SAMPLING
+# ============================================================
+
+SAMPLE_SIZE = 50000
+
+print("\nPerforming Stratified Random Sampling...")
+print("Required Sample Size:", SAMPLE_SIZE)
+
+sample, remaining = train_test_split(
+
+    data,
+
+    train_size=SAMPLE_SIZE,
+
+    stratify=data["Disease"],
+
+    random_state=42
+)
+
+sample = sample.reset_index(drop=True)
+
+
+# ============================================================
+# STEP 5: DISPLAY SAMPLE DISTRIBUTION
+# ============================================================
+
+print("\nStratified Sample:")
+print("-----------------------------")
+
+print(
+    "Sample Size:",
+    len(sample)
+)
+
+print("\nSample Disease Distribution:")
+
+sample_distribution = (
+    sample["Disease"]
+    .value_counts(normalize=True)
+    .sort_index()
+    * 100
+)
+
+print(sample_distribution)
+
+
+# ============================================================
+# STEP 6: PREPARE DATA FOR MACHINE LEARNING
+# ============================================================
+
+X = sample.drop(
+    "Disease",
+    axis=1
+)
+
+y = sample["Disease"]
+
+
+# Convert categorical columns
+X = pd.get_dummies(
+    X,
+    columns=[
+        "Gender",
+        "Disease_Category"
+    ],
+    dtype=int
+)
+
+
+# ============================================================
+# STEP 7: TRAIN-TEST SPLIT
+# ============================================================
+
+X_train, X_test, y_train, y_test = train_test_split(
+
+    X,
+    y,
+
+    test_size=0.20,
+
+    stratify=y,
+
+    random_state=42
+)
+
+
+print("\nMachine Learning Dataset:")
+print("-----------------------------")
+
+print(
+    "Training Records:",
+    len(X_train)
+)
+
+print(
+    "Testing Records:",
+    len(X_test)
+)
+
+
+# ============================================================
+# STEP 8: RANDOM FOREST MODEL
+# ============================================================
+
+print("\nTraining Random Forest Model...")
+
+model = RandomForestClassifier(
+
+    n_estimators=100,
+
+    max_depth=10,
+
+    random_state=42,
+
+    n_jobs=-1
+)
+
+model.fit(
+    X_train,
+    y_train
+)
+
+print("Training completed!")
+
+
+# ============================================================
+# STEP 9: PREDICTION
+# ============================================================
+
+y_pred = model.predict(
+    X_test
+)
+
+
+# ============================================================
+# STEP 10: PERFORMANCE METRICS
+# ============================================================
+
+accuracy = accuracy_score(
+    y_test,
+    y_pred
+)
+
+precision = precision_score(
+    y_test,
+    y_pred,
+    zero_division=0
+)
+
+recall = recall_score(
+    y_test,
+    y_pred,
+    zero_division=0
+)
+
+f1 = f1_score(
+    y_test,
+    y_pred,
+    zero_division=0
+)
+
+
+# ============================================================
+# STEP 11: DISPLAY RESULTS
+# ============================================================
+
+print()
+print("=" * 65)
+print("             MODEL PERFORMANCE")
+print("=" * 65)
+
+print(
+    "\nAccuracy  :",
+    round(accuracy * 100, 2),
+    "%"
+)
+
+print(
+    "Precision :",
+    round(precision * 100, 2),
+    "%"
+)
+
+print(
+    "Recall    :",
+    round(recall * 100, 2),
+    "%"
+)
+
+print(
+    "F1 Score  :",
+    round(f1 * 100, 2),
+    "%"
+)
+
+
+# ============================================================
+# STEP 12: CONFUSION MATRIX
+# ============================================================
+
+print("\nConfusion Matrix:")
+print("-----------------------------")
+
+cm = confusion_matrix(
+    y_test,
+    y_pred
+)
+
+print(cm)
+
+
+# ============================================================
+# STEP 13: CLASSIFICATION REPORT
+# ============================================================
+
+print("\nClassification Report:")
+print("-----------------------------")
+
+print(
+    classification_report(
+        y_test,
+        y_pred,
+        zero_division=0
+    )
+)
+
+
+# ============================================================
+# STEP 14: FINAL CONCLUSION
+# ============================================================
+
+print("=" * 65)
+print("FINAL CONCLUSION")
+print("=" * 65)
+
+print(
+    "\nSampling Method:"
+)
+
+print(
+    "STRATIFIED RANDOM SAMPLING"
+)
+
+print(
+    "\nMachine Learning Algorithm:"
+)
+
+print(
+    "RANDOM FOREST"
+)
+
+print(
+    "\nOriginal Dataset:",
+    "1,000,000 records"
+)
+
+print(
+    "Selected Sample:",
+    "50,000 records"
+)
+
+print(
+    "\nThe stratified sampling method preserves"
+    " the distribution of disease classes."
+)
+
+print(
+    "It reduces memory usage and computational cost"
+    " while maintaining representative patient categories."
+)
+
+if accuracy >= 0.95:
+
+    print(
+        "\n95% ACCURACY TARGET: ACHIEVED"
+    )
+
+else:
+
+    print(
+        "\n95% ACCURACY TARGET: NOT ACHIEVED"
+    )
+
+print("=" * 65)
